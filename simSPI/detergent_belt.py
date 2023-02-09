@@ -345,7 +345,7 @@ class DetergentBelt(Model):
         
         Returns
         -------
-        self.coordinates_set: numpy array[,3]
+        self.coordinates_set: array[,3] (python native list data structure)
             Set of coordinates of ellipsoid pseudo atoms.
         """
         coordinates_set = []
@@ -358,7 +358,7 @@ class DetergentBelt(Model):
                 x = r
                 while x <= b:
                     if self.eq_ellipsoid(x,y,z,b,c):
-                         coordinates_set += ([x,y,z], [-x,y,z], 
+                         coordinates_set += ([x,y,z], [-x,y,z],
                                              [x,-y,z], [-x,-y,z],
                                              [x,y,-z], [-x,y,-z], 
                                              [x,-y,-z], [-x,-y,-z])
