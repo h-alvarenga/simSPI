@@ -4,7 +4,6 @@ import numpy as np
 import gemmi
 from sklearn.decomposition import PCA
 from scipy.spatial import ConvexHull
-from scipy.spatial import Delaunay
 
 """Module that creates a model of a membrane protein surronded by a detergent belt"""
 
@@ -382,8 +381,11 @@ class DetergentBelt(Model):
         """
         hull = ConvexHull(hull_set)
         inside = list()
+        arr = np.empty((len(hull_set) + 1, len(hull_set[0])))
+        arr[:-1] = hull_set
         for point in self.coordinates_set:
-            new_hull = ConvexHull(np.concatenate((hull_set, [point]),axis=0))
+            arr[-1] = point
+            new_hull = ConvexHull(arr)
             if np.array_equal(new_hull.vertices, hull.vertices):
                 inside.append(point)
         self.inside = inside
