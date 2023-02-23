@@ -1,18 +1,21 @@
 import numpy as np
+from compSPI import transforms
+import torch
 
-def project_rotated_ellipsoid(x,y,a,b,c,r):
+def project_rotated_ellipsoid(x,y,a,b,c,rotation):
   '''
 
-  :param x:
-  :param y:
-  :param a:
-  :param b:
-  :param c:
-  :param r:
-  :return:
+  :param x: numpy ndarray, shape (n_points, n_points). 2d array meshgrid
+  :param y: numpy ndarray, shape (n_points, n_points). 2d array meshgrid
+  :param a: float, scaling of x
+  :param b: float, scaling of y
+  :param c: float, scaling of z
+  :param rotation:
+  :return: numpy ndarray, shape (n_points, n_points)
 
   Comments
   --------
+  From ellipsoid equation (x'/a)^2 + (y'/b)^2  + (z'/c)^2 < 1 , with rotated points R[x y z] = x' y' z'
   # piece_1 cancels out
   # note that the z0 and z1 terms are very similar, except for a sign, so we can precompute the pieces
   piece_1 = (-Rxx*Rxz*b**2*c**2*x - Rxy*Rxz*b**2*c**2*y - Ryx*Ryz*a**2*c**2*x - Ryy*Ryz*a**2*c**2*y - Rzx*Rzz*a**2*b**2*x - Rzy*Rzz*a**2*b**2*y)
@@ -20,11 +23,93 @@ def project_rotated_ellipsoid(x,y,a,b,c,r):
   z1 = (piece_1 + piece_2) / piece_3
   z = np.abs(z0 - z1) = 2*piece_2/piece_3
   '''
-  Rxx,Rxy,Rxz = r[0]
-  Ryx,Ryy,Ryz = r[1]
-  Rzx,Rzy,Rzz = r[2]
+  Rxx,Rxy,Rxz = rotation[0]
+  Ryx,Ryy,Ryz = rotation[1]
+  Rzx,Rzy,Rzz = rotation[2]
   piece_2 = a*b*c*np.sqrt(-Rxx**2*Ryz**2*c**2*x**2 - Rxx**2*Rzz**2*b**2*x**2 - 2*Rxx*Rxy*Ryz**2*c**2*x*y - 2*Rxx*Rxy*Rzz**2*b**2*x*y + 2*Rxx*Rxz*Ryx*Ryz*c**2*x**2 + 2*Rxx*Rxz*Ryy*Ryz*c**2*x*y + 2*Rxx*Rxz*Rzx*Rzz*b**2*x**2 + 2*Rxx*Rxz*Rzy*Rzz*b**2*x*y - Rxy**2*Ryz**2*c**2*y**2 - Rxy**2*Rzz**2*b**2*y**2 + 2*Rxy*Rxz*Ryx*Ryz*c**2*x*y + 2*Rxy*Rxz*Ryy*Ryz*c**2*y**2 + 2*Rxy*Rxz*Rzx*Rzz*b**2*x*y + 2*Rxy*Rxz*Rzy*Rzz*b**2*y**2 - Rxz**2*Ryx**2*c**2*x**2 - 2*Rxz**2*Ryx*Ryy*c**2*x*y - Rxz**2*Ryy**2*c**2*y**2 - Rxz**2*Rzx**2*b**2*x**2 - 2*Rxz**2*Rzx*Rzy*b**2*x*y - Rxz**2*Rzy**2*b**2*y**2 + Rxz**2*b**2*c**2 - Ryx**2*Rzz**2*a**2*x**2 - 2*Ryx*Ryy*Rzz**2*a**2*x*y + 2*Ryx*Ryz*Rzx*Rzz*a**2*x**2 + 2*Ryx*Ryz*Rzy*Rzz*a**2*x*y - Ryy**2*Rzz**2*a**2*y**2 + 2*Ryy*Ryz*Rzx*Rzz*a**2*x*y + 2*Ryy*Ryz*Rzy*Rzz*a**2*y**2 - Ryz**2*Rzx**2*a**2*x**2 - 2*Ryz**2*Rzx*Rzy*a**2*x*y - Ryz**2*Rzy**2*a**2*y**2 + Ryz**2*a**2*c**2 + Rzz**2*a**2*b**2)
   piece_3 = (Rxz**2*b**2*c**2 + Ryz**2*a**2*c**2 + Rzz**2*a**2*b**2)
   z_nans = 2*piece_2/piece_3
   proj_ellipsoid = np.nan_to_num(z_nans, 0)
   return proj_ellipsoid
+
+def projected_rotated_circle(x, y, radius_circle, rotation):
+  '''
+  https://math.stackexchange.com/a/2962856
+  '''
+  normal_axis = rotation[:, -1]  # rotation dotted with zaxis (projection axis)
+  nx, ny, nz = normal_axis
+  ellipse = (nx * nx + nz * nz) * x * x + 2 * nx * ny * x * y + (nz * nz + ny * ny) * y * y - nz * nz * radius_circle * radius_circle < 0
+  return ellipse
+
+def project_rotated_cylinder(x, y, radius_circle, h, rotation):
+  '''
+  h in units of pixels
+
+  TODO: h=0 case still shows thin line
+  [45,90,0] fails
+  '''
+  assert x.shape == y.shape
+  n = x.shape[0]
+  Rxz, Ryz, Rzz = rotation[:, -1]
+
+  if np.isclose(rotation[-1, -1], 1, atol=1e-4):
+    case = 'about z-axis'
+    circle = projected_rotated_circle(x, y, radius_circle, rotation=np.eye(3))
+    fill_factor = h
+    proj_cylinder = fill_factor * circle
+    print(case)
+    return proj_cylinder
+
+  elif np.isclose(np.abs(Rxz), 1):  # 90 deg, line along y-axis
+    case = '90 deg, line along x-axis'
+    line = torch.zeros(n, n)
+    line[n // 2, :] = 1
+    n_border_x = int(np.round(n / 2 - h / 2))
+    line[:, :n_border_x] = line[:, -n_border_x:] = 0
+
+
+  elif np.isclose(np.abs(Ryz), 1):  #
+    case = '90 deg, line along y-axis'
+    line = torch.zeros(n, n)
+    line[:, n // 2] = 1
+    n_border_y = int(np.round(n / 2 - h / 2))
+    line[:n_border_y, :] = line[-n_border_y:, :] = 0
+
+  elif np.isclose(Ryz, 0) and not np.isclose(Rzz, 1):
+    case = '90 deg, line along x-axis with z-tilt'
+    line = torch.zeros(n, n)
+    line[n // 2, :] = 1
+    n_border_x = int(np.round(n / 2 - h / 2 * np.abs(Rxz)))
+    line[:, :n_border_x] = line[:, -n_border_x:] = 0
+
+  elif np.isclose(Rxz, 0) and not np.isclose(Rzz, 1):
+    case = '90 deg, line along y-axis with z-tilt'
+    line = torch.zeros(n, n)
+    line[:, n // 2] = 1
+    n_border_y = int(np.round(n / 2 - h / 2 * np.abs(Ryz)))
+    line[:n_border_y, :] = line[-n_border_y:, :] = 0
+
+  else:
+    case = 'else'
+    line_test = Rxz * y - Ryz * x  # intercept zero since cylinder centered
+
+    line_width_factor = 2
+    line_clipped = line_width_factor - np.clip(np.abs(line_test), a_min=0, a_max=line_width_factor)
+
+
+    n_border_x = int(np.round(n / 2 - h / 2 * np.abs(Rxz)))
+    n_border_y = int(np.round(n / 2 - h / 2 * np.abs(Ryz)))
+
+    # fails if n_border 0 or n//2
+    line_clipped[:n_border_y, :] = line_clipped[-n_border_y:, :] = line_clipped[:, :n_border_x] = line_clipped[:,
+                                                                                                  -n_border_x:] = 0
+    line = line_clipped
+
+  line_f = transforms.primal_to_fourier_2D(line)
+
+  ellipse = projected_rotated_circle(x, y, radius_circle, rotation)
+  ellipse_f = transforms.primal_to_fourier_2D(ellipse)
+  convolve = transforms.fourier_to_primal_2D(ellipse_f * line_f)
+  proj_cylinder = convolve.real.numpy()
+  print(case)
+  return proj_cylinder
