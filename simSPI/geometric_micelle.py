@@ -35,18 +35,24 @@ def project_rotated_ellipsoid(x,y,a,b,c,rotation):
 def projected_rotated_circle(x, y, radius_circle, rotation):
   '''
   https://math.stackexchange.com/a/2962856
+  TODO: fails around 'ZYX',[45,90,0], dotted lines or single point at origin for for 'ZYX',[_,90,0] and extent longer than radius_circle for 'ZYX',[45,90,0]
+    proposed fix: separate case when ellipse is fully on side: it's just a line of length circle diameter somewhere on xy plane.
+                  perhaps make line similar to in project_rotated_cylinder
+                  or handle case directly in project_rotated_cylinder (will be rectangle), and throw error if encoutered here
   '''
   normal_axis = rotation[:, -1]  # rotation dotted with zaxis (projection axis)
   nx, ny, nz = normal_axis
   ellipse = (nx * nx + nz * nz) * x * x + 2 * nx * ny * x * y + (nz * nz + ny * ny) * y * y - nz * nz * radius_circle * radius_circle < 0
   return ellipse
 
-def project_rotated_cylinder(x, y, radius_circle, h, rotation):
+def project_rotated_cylinder(x, y, radius_circle, h, rotation, n_crop=None):
   '''
   h in units of pixels
 
-  TODO: h=0 case still shows thin line
-  [45,90,0] fails
+  TODO:
+    h=0 case still shows thin line
+    [45,90,0] fails
+    normalize volume
   '''
   assert x.shape == y.shape
   n = x.shape[0]
@@ -109,7 +115,11 @@ def project_rotated_cylinder(x, y, radius_circle, h, rotation):
 
   ellipse = projected_rotated_circle(x, y, radius_circle, rotation)
   ellipse_f = transforms.primal_to_fourier_2D(ellipse)
-  convolve = transforms.fourier_to_primal_2D(ellipse_f * line_f)
+  product = ellipse_f * line_f
+  if n_crop is not None:
+    idx_start, idx_end = n//2-n_crop//2, n//2+n_crop//2
+    product = product[idx_start:idx_end,idx_start:idx_end]
+  convolve = transforms.fourier_to_primal_2D(product)
   proj_cylinder = convolve.real.numpy()
   print(case)
   return proj_cylinder
