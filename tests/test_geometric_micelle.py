@@ -127,7 +127,7 @@ def test_project_rotated_cylinder():
   proj_cylinder_fat = project_rotated_cylinder(x, y, radius_circle=rad_fat, h=h, rotation=rotation)
   assert np.isclose(proj_cylinder_fat.sum() / proj_cylinder_thin.sum(), (rad_fat / rad_thin) ** 2, atol=1e-1)
 
-  overlap = np.logical_and(proj_cylinder_thin > small, proj_cylinder_fat > small)
+  overlap = torch.logical_and(proj_cylinder_thin > small, proj_cylinder_fat > small)
   assert np.allclose(overlap, proj_cylinder_thin > small)
 
   # identity, circle of area h*pi*r^2
