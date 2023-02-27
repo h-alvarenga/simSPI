@@ -1,6 +1,7 @@
 import numpy as np
 from compSPI import transforms
 import torch
+from torch import tensor
 
 def project_rotated_ellipsoid(x,y,a,b,c,rotation):
   '''
@@ -10,12 +11,12 @@ def project_rotated_ellipsoid(x,y,a,b,c,rotation):
   :param a: float, scaling of x
   :param b: float, scaling of y
   :param c: float, scaling of z
-  :param rotation:
+  :param rotation: numpy ndarray, shape (3,3). may need to use rotation.T for input, see comments
   :return: numpy ndarray, shape (n_points, n_points)
 
   Comments
   --------
-  From ellipsoid equation (x'/a)^2 + (y'/b)^2  + (z'/c)^2 < 1 , with rotated points R[x y z] = x' y' z'
+  From ellipsoid equation (x'/a)^2 + (y'/b)^2  + (z'/c)^2 < 1 , with rotated points R[x y z]^T = [x' y' z'], i.e. [x y z]^T = R^T[x' y' z']^T
   # piece_1 cancels out
   # note that the z0 and z1 terms are very similar, except for a sign, so we can precompute the pieces
   piece_1 = (-Rxx*Rxz*b**2*c**2*x - Rxy*Rxz*b**2*c**2*y - Ryx*Ryz*a**2*c**2*x - Ryy*Ryz*a**2*c**2*y - Rzx*Rzz*a**2*b**2*x - Rzy*Rzz*a**2*b**2*y)
@@ -47,12 +48,15 @@ def projected_rotated_circle(x, y, radius_circle, rotation):
 
 def project_rotated_cylinder(x, y, radius_circle, h, rotation, n_crop=None):
   '''
+  Comments
+  --------
   h in units of pixels
 
   TODO:
     h=0 case still shows thin line
-    [45,90,0] fails
-    normalize volume
+    'ZYX' [45,90,0] fails
+    'XZY',[0,1,91] problems in two phase / stripes
+    make blurring to anti-alias
   '''
   assert x.shape == y.shape
   n = x.shape[0]
@@ -99,7 +103,7 @@ def project_rotated_cylinder(x, y, radius_circle, h, rotation, n_crop=None):
     case = 'else'
     line_test = Rxz * y - Ryz * x  # intercept zero since cylinder centered
 
-    line_width_factor = 2
+    line_width_factor = 2 # sqrt 2 ?
     line_clipped = line_width_factor - np.clip(np.abs(line_test), a_min=0, a_max=line_width_factor)
 
 
@@ -123,3 +127,52 @@ def project_rotated_cylinder(x, y, radius_circle, h, rotation, n_crop=None):
   proj_cylinder = convolve.real.numpy()
   print(case)
   return proj_cylinder
+
+def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio):
+  '''
+
+  :param x_mesh:
+  :param y_mesh:
+  :param a:
+  :param b:
+  :param c:
+  :param rotation:
+  :param radius_circle:
+  :param inner_shell_ratio:
+  :param shell_density_ratio:
+  :return:
+
+  Comments:
+  --------
+  Note that the rotation input to project_rotated_ellipsoid and project_rotated_cylinder are transpose to each other
+  '''
+  proj_ellipsoid_outer = project_rotated_ellipsoid(x_mesh, y_mesh, a, b, c, rotation.T)
+  proj_ellipsoid_inner = project_rotated_ellipsoid(x_mesh, y_mesh,
+                                                                     a * inner_shell_ratio,
+                                                                     b * inner_shell_ratio,
+                                                                     c * inner_shell_ratio,
+                                                                     rotation.T)
+  shell = proj_ellipsoid_outer - proj_ellipsoid_inner
+
+  h_outer = c * 2
+  volume_outer = np.pi * radius_circle ** 2 * h_outer
+  proj_cylinder_outer = project_rotated_cylinder(tensor(x_mesh),
+                                                                   tensor(y_mesh),
+                                                                   radius_circle=radius_circle,
+                                                                   h=h_outer,
+                                                                   rotation=rotation)
+  proj_cylinder_outer = volume_outer * proj_cylinder_outer / proj_cylinder_outer.sum()
+
+  h_inner = c * inner_shell_ratio * 2
+  volume_inner = np.pi * radius_circle ** 2 * h_inner
+  proj_cylinder_inner = project_rotated_cylinder(tensor(x_mesh),
+                                                                   tensor(y_mesh),
+                                                                   radius_circle=radius_circle,
+                                                                   h=h_inner,
+                                                                   rotation=rotation)
+  proj_cylinder_inner = volume_inner * proj_cylinder_inner / proj_cylinder_inner.sum()
+
+  proj_cylinder_shell = proj_cylinder_outer - proj_cylinder_inner
+  micelle = shell_density_ratio * shell + proj_ellipsoid_inner - (
+            shell_density_ratio * proj_cylinder_shell + proj_cylinder_inner)
+  return micelle

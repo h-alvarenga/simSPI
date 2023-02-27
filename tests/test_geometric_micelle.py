@@ -1,5 +1,5 @@
 import numpy as np
-from simSPI.geometric_micelle import project_rotated_ellipsoid, projected_rotated_circle, project_rotated_cylinder
+from simSPI.geometric_micelle import project_rotated_ellipsoid, projected_rotated_circle, project_rotated_cylinder, two_phase_micelle
 from scipy.spatial.transform import Rotation
 import torch
 
@@ -160,3 +160,64 @@ def test_project_rotated_cylinder():
     proj_cylinder_p = project_rotated_cylinder(x, y, radius_circle=radius_circle, h=h, rotation=rotation_p)
     proj_cylinder_m = project_rotated_cylinder(x, y, radius_circle=radius_circle, h=h, rotation=rotation_m)
     assert np.allclose(proj_cylinder_p, proj_cylinder_m)
+
+def test_two_phase_micelle():
+  scale = 32
+  a = 8 * scale
+  b = 8 * scale
+  c = 2 * scale
+  radius_circle = 3 * scale
+  step_x = step_y = 1
+  max_axis = np.max([a, b])
+  x_mesh, y_mesh = np.meshgrid(np.arange(-max_axis, max_axis, step=step_x), np.arange(-max_axis, max_axis, step=step_y))
+
+  # same volume
+  np.random.seed(1)
+  rotations = Rotation.random(num=2).as_matrix()
+
+  micelle_1 = two_phase_micelle(x_mesh, y_mesh,
+                                a=a,
+                                b=b,
+                                c=c,
+                                rotation=rotations[0],
+                                radius_circle=radius_circle,
+                                inner_shell_ratio=0.9,
+                                shell_density_ratio=100)
+
+  micelle_2 = two_phase_micelle(x_mesh, y_mesh,
+                                a=a,
+                                b=b,
+                                c=c,
+                                rotation=rotations[1],
+                                radius_circle=radius_circle,
+                                inner_shell_ratio=0.9,
+                                shell_density_ratio=100)
+
+  assert np.isclose(0, (micelle_1 - micelle_2).sum() / (micelle_2 + micelle_2).sum(), atol=1e-4)
+
+  # volume scales with cube of units
+  micelle_vol = []
+  scales = [16, 32]
+  for idx, scale in enumerate(scales):
+    a = 8 * scale
+    b = 8 * scale
+    c = 2 * scale
+    radius_circle = 3 * scale
+    step_x = step_y = 1
+    max_axis = np.max([a, b])
+    x_mesh, y_mesh = np.meshgrid(np.arange(-max_axis, max_axis, step=step_x),
+                                 np.arange(-max_axis, max_axis, step=step_y))
+
+    micelle = two_phase_micelle(x_mesh, y_mesh,
+                                a=a,
+                                b=b,
+                                c=c,
+                                rotation=rotations[idx],
+                                radius_circle=radius_circle,
+                                inner_shell_ratio=0.9,
+                                shell_density_ratio=100)
+
+    micelle_vol.append(micelle.sum())
+
+  volume_factor = (scales[0] / scales[1]) ** 3
+  assert np.isclose(micelle_vol[0] / micelle_vol[1], volume_factor, atol=1e-3)
