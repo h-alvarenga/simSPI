@@ -113,8 +113,9 @@ def project_rotated_cylinder(x, y, radius_circle, h, rotation, n_crop=None):
 
     n_border_x = round(n / 2 - h / 2 * abs(Rxz))
     n_border_y = round(n / 2 - h / 2 * abs(Ryz))
+    n_border_x = min_max_border(n_border_x, n)
+    n_border_y = min_max_border(n_border_y, n)
 
-    # fails if n_border 0 or n//2
     line_clipped[:n_border_y, :] = line_clipped[-n_border_y:, :] = line_clipped[:, :n_border_x] = line_clipped[:,
                                                                                                   -n_border_x:] = 0
     line = line_clipped
@@ -153,7 +154,6 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
   TODO: fails, not sure why: rotation = eye(3); rotation[[0,2]] = rotation[[2,0]]
 
   '''
-  # print('two_phase_micelle:',x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio)
   proj_ellipsoid_outer = project_rotated_ellipsoid(x_mesh, y_mesh, a, b, c, rotation.T)
   assert proj_ellipsoid_outer.sum() > 0
   proj_ellipsoid_inner = project_rotated_ellipsoid(x_mesh, y_mesh,
@@ -191,3 +191,10 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
             shell_density_ratio * proj_cylinder_shell + proj_cylinder_inner)
   assert micelle.sum() > 0
   return micelle
+
+def min_max_border(n_border, n):
+  '''prevents line from dissappearing when n_border is 0 or n//2'''
+  min_space = 1
+  n_border = min(n // 2 - min_space, n_border)
+  n_border = max(min_space, n_border)
+  return n_border

@@ -4,7 +4,7 @@ import torch
 from torch import tensor
 from scipy.spatial.transform import Rotation
 
-from simSPI.geometric_micelle import project_rotated_ellipsoid, projected_rotated_circle, project_rotated_cylinder, two_phase_micelle
+from simSPI.geometric_micelle import project_rotated_ellipsoid, projected_rotated_circle, project_rotated_cylinder, two_phase_micelle, min_max_border
 
 
 def test_rotation_conventions():
@@ -225,3 +225,18 @@ def test_two_phase_micelle():
 
   volume_factor = (scales[0] / scales[1]) ** 3
   assert np.isclose(micelle_vol[0] / micelle_vol[1], volume_factor, atol=1e-3)
+
+
+def test_min_max_border():
+  n = 128
+  h = 32
+  Rxz_mesh, Ryz_mesh = np.meshgrid(np.arange(-1, 1, 0.01), np.arange(-1, 1, 0.01))
+  n_border_x = np.round(n / 2 - h / 2 * np.abs(Rxz_mesh))
+  n_border_y = np.round(n / 2 - h / 2 * np.abs(Ryz_mesh))
+
+  for i in range(n):
+    for j in range(n):
+      assert 0 < min_max_border(n_border_x[i, j], n)
+      assert min_max_border(n_border_x[i, j], n) < n // 2
+      assert 0 < min_max_border(n_border_y[i, j], n)
+      assert min_max_border(n_border_y[i, j], n) < n // 2

@@ -55,7 +55,6 @@ class LinearSimulator(torch.nn.Module):
         """
         projection = self.projector(rot_params)
         projection = self.micelle(projection, rot_params, micelle_params)
-        # return self.micelle(torch.zeros_like(projection), rot_params, micelle_params)
         f_projection = primal_to_fourier_2D(projection)
         f_projection = self.ctf(f_projection, ctf_params)
         f_projection = self.shift(f_projection, shift_params)
