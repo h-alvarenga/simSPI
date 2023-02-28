@@ -8,6 +8,7 @@ from compSPI.transforms import fourier_to_primal_2D, primal_to_fourier_2D
 
 from simSPI.linear_simulator.ctf import CTF
 from simSPI.linear_simulator.noise_utils import Noise
+from simSPI.linear_simulator.micelle import Micelle
 from simSPI.linear_simulator.projector import Projector
 from simSPI.linear_simulator.shift_utils import Shift
 from simSPI.linear_simulator.volume_utils import init_cube
@@ -31,9 +32,10 @@ class LinearSimulator(torch.nn.Module):
         self.init_volume()
         self.ctf = CTF(config)
         self.shift = Shift(config)
+        self.micelle = Micelle(config)
         self.noise = Noise(config)
 
-    def forward(self, rot_params, ctf_params, shift_params):
+    def forward(self, rot_params, ctf_params, shift_params, micelle_params=None):
         """Create cryoEM measurements using input parameters.
 
         Parameters
@@ -52,6 +54,8 @@ class LinearSimulator(torch.nn.Module):
             Tensor ([batch_size,1,side_len,side_len]) contains cryoEM measurement
         """
         projection = self.projector(rot_params)
+        projection = self.micelle(projection, rot_params, micelle_params)
+        # return self.micelle(torch.zeros_like(projection), rot_params, micelle_params)
         f_projection = primal_to_fourier_2D(projection)
         f_projection = self.ctf(f_projection, ctf_params)
         f_projection = self.shift(f_projection, shift_params)

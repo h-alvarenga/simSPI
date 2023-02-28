@@ -59,6 +59,8 @@ def project_rotated_cylinder(x, y, radius_circle, h, rotation, n_crop=None):
     'ZYX' [45,90,0] fails
     'XZY',[0,1,91] problems in two phase / stripes
     make blurring to anti-alias
+
+    fails: 'XYZ' [ 84.00753554,  -0.84101199, -94.21614645] degrees. completely empty. else case
   '''
   assert x.shape == y.shape
   n = x.shape[0]
@@ -147,14 +149,21 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
   Comments:
   --------
   Note that the rotation input to project_rotated_ellipsoid and project_rotated_cylinder are transpose to each other
+
+  TODO: fails, not sure why: rotation = eye(3); rotation[[0,2]] = rotation[[2,0]]
+
   '''
+  # print('two_phase_micelle:',x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio)
   proj_ellipsoid_outer = project_rotated_ellipsoid(x_mesh, y_mesh, a, b, c, rotation.T)
+  assert proj_ellipsoid_outer.sum() > 0
   proj_ellipsoid_inner = project_rotated_ellipsoid(x_mesh, y_mesh,
                                                    a * inner_shell_ratio,
                                                    b * inner_shell_ratio,
                                                    c * inner_shell_ratio,
                                                    rotation.T)
+  assert proj_ellipsoid_inner.sum() > 0
   shell = proj_ellipsoid_outer - proj_ellipsoid_inner
+  assert shell.sum() > 0
 
   h_outer = c * 2
   volume_outer = math.pi * radius_circle ** 2 * h_outer
@@ -163,6 +172,7 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
                                                  radius_circle=radius_circle,
                                                  h=h_outer,
                                                  rotation=rotation)
+  assert proj_cylinder_outer.sum() > 0
   proj_cylinder_outer = volume_outer * proj_cylinder_outer / proj_cylinder_outer.sum()
 
   h_inner = c * inner_shell_ratio * 2
@@ -172,9 +182,12 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
                                                  radius_circle=radius_circle,
                                                  h=h_inner,
                                                  rotation=rotation)
+  assert proj_cylinder_inner.sum() > 0
   proj_cylinder_inner = volume_inner * proj_cylinder_inner / proj_cylinder_inner.sum()
 
   proj_cylinder_shell = proj_cylinder_outer - proj_cylinder_inner
+
   micelle = shell_density_ratio * shell + proj_ellipsoid_inner - (
             shell_density_ratio * proj_cylinder_shell + proj_cylinder_inner)
+  assert micelle.sum() > 0
   return micelle
