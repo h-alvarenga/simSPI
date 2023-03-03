@@ -1,5 +1,7 @@
 """Module to add in the projection of a micelle."""
 import torch
+from torch import tensor
+
 from simSPI.geometric_micelle import two_phase_micelle
 from simSPI.linear_simulator.shift_utils import Shift
 from compSPI.transforms import fourier_to_primal_2D, primal_to_fourier_2D
@@ -8,8 +10,6 @@ class Micelle(torch.nn.Module):
   """Class to corrupt the projection with noise.
 
   Written by Geoffrey Woollard
-
-  TODO: think about about how translation of micelle plays with translation of protein and final projection to the measured image.
 
   Parameters
   ----------
@@ -28,7 +28,7 @@ class Micelle(torch.nn.Module):
     self.micelle_inner_shell_ratio = config.micelle_inner_shell_ratio
     self.micelle_shell_density_ratio = config.micelle_shell_density_ratio
     self.micelle_box_size = config.micelle_box_size
-    self.micelle_translation_z = config.micelle_translation_z
+    self.micelle_translation = tensor([config.micelle_translation_x, config.micelle_translation_y, config.micelle_translation_z])
     self.micelle_shift = Shift(config)
 
 
@@ -41,9 +41,7 @@ class Micelle(torch.nn.Module):
                                  torch.arange(-box_size//2, box_size//2, step=step_y))
 
     rotations = rot_params["rotmat"]
-    # np.random.seed(1)
     batch_size = len(rot_params["rotmat"])
-    # rotations = torch.from_numpy(Rotation.random(num=batch_size).as_matrix())
 
     micelles = torch.empty(batch_size, 1, box_size, box_size)
     for idx in range(batch_size): # TODO: vectorize
@@ -60,14 +58,13 @@ class Micelle(torch.nn.Module):
   def shift_micelle_given_rotation_translation(self, micelle_f, rot_params):
     '''
 
-    TODO: incorporate micelle_translation_x, micelle_translation_y.
     :param micelle_f:
     :param rot_params:
     :return:
     '''
 
     rotations = rot_params["rotmat"]
-    translations = rotations[:,[0,1],-1]*self.micelle_translation_z
+    translations = rotations@self.micelle_translation
 
     shift_params = {'shift_x': translations[:,0],
                     'shift_y': translations[:,1]}
