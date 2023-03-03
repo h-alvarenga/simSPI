@@ -9,6 +9,8 @@ class Micelle(torch.nn.Module):
 
   Written by Geoffrey Woollard
 
+  TODO: think about about how translation of micelle plays with translation of protein and final projection to the measured image.
+
   Parameters
   ----------
   config: class
@@ -56,6 +58,13 @@ class Micelle(torch.nn.Module):
     return micelles
 
   def shift_micelle_given_rotation_translation(self, micelle_f, rot_params):
+    '''
+
+    TODO: incorporate micelle_translation_x, micelle_translation_y.
+    :param micelle_f:
+    :param rot_params:
+    :return:
+    '''
 
     rotations = rot_params["rotmat"]
     translations = rotations[:,[0,1],-1]*self.micelle_translation_z
