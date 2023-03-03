@@ -4,10 +4,16 @@ from torch import tensor
 
 from simSPI.geometric_micelle import two_phase_micelle
 from simSPI.linear_simulator.shift_utils import Shift
-from compSPI.transforms import fourier_to_primal_2D, primal_to_fourier_2D
+from compSPI.transforms import primal_to_fourier_2D
 
 class Micelle(torch.nn.Module):
-  """Class to corrupt the projection with noise.
+  """Class to generate micelle in Fourier domain.
+
+  Generates micelle in Fourier domain, which has been rotated.
+  Generalized to account for micelle not centred:
+    generates centred using simSPI.geometric_micelle
+    and then shifts this numerically with FFTs by rotated displacement to new origin
+
 
   Written by Geoffrey Woollard
 
@@ -58,11 +64,14 @@ class Micelle(torch.nn.Module):
   def shift_micelle_given_rotation_translation(self, micelle_f, rot_params):
     '''
 
-    TODO: test shift does not change power
-
     :param micelle_f:
     :param rot_params:
     :return:
+
+    Notes
+    -----
+    Large shifts can change (shifting and flipping) scale because of a numerical instability (torch.exp) in Shift.phase_shift for large translation.
+      Consider promoting to double
     '''
 
     rotations = rot_params["rotmat"]
@@ -93,32 +102,27 @@ class Micelle(torch.nn.Module):
     return arr_4d_sum1
 
 
-  def forward(self, proj, rot_params, micelle_params):
-    """Add micelle to projections.
+  def forward(self, rot_params, micelle_params):
+    """Generate micelle.
 
     Currently, only supports ellipsoid micelles with a cylindrical cavity.
 
-    TODO: stay in Fourier space
-
     Parameters
     ----------
-    proj: torch.Tensor
-        input projection of shape (batch_size,1,side_len,side_len)
+    rot_params: dict
+    micelle_params: AttrDict
 
     Returns
     -------
     out: torch.Tensor
         noisy projection of shape (batch_size,1,side_len,side_len)
+
     """
     if micelle_params is not None:
       micelle = self.get_micelle(rot_params, micelle_params)
-      micelle_f = primal_to_fourier_2D(micelle)
+      micelle_sum1 = self.batch_scale_norm(micelle)
+      micelle_scaled = self.micelle_scale_factor*micelle_sum1
+      micelle_scaled_f = primal_to_fourier_2D(micelle_scaled)
+      micelle_scaled_shifted_f = self.shift_micelle_given_rotation_translation(micelle_scaled_f,rot_params)
 
-      # TODO: check why changing (shifting and flipping) scale
-      micelle_shifted_f = self.shift_micelle_given_rotation_translation(micelle_f,rot_params)
-      micelle_shifted = fourier_to_primal_2D(micelle_shifted_f).real
-      micelle_shifted_sum1 = self.batch_scale_norm(micelle_shifted)
-
-      proj = proj + self.micelle_scale_factor*micelle_shifted_sum1
-
-    return proj
+    return micelle_scaled_shifted_f

@@ -33,6 +33,8 @@ class Shift(torch.nn.Module):
     def phase_shift(self, x_fourier, t_x, t_y):
         """Output modulated (fourier equivalent of shifting in primal domain).
 
+        TODO: numerically stabilize large shifts. consider promoting to double
+
         Input images given in batch wise format.
         The modulation depends on t_x, t_y.
 

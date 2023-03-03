@@ -54,8 +54,9 @@ class LinearSimulator(torch.nn.Module):
             Tensor ([batch_size,1,side_len,side_len]) contains cryoEM measurement
         """
         projection = self.projector(rot_params)
-        projection = self.micelle(projection, rot_params, micelle_params)
         f_projection = primal_to_fourier_2D(projection)
+        f_micelle = self.micelle(rot_params, micelle_params)
+        f_projection = f_projection + f_micelle
         f_projection = self.ctf(f_projection, ctf_params)
         f_projection = self.shift(f_projection, shift_params)
         projection = fourier_to_primal_2D(f_projection)
