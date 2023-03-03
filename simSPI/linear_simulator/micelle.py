@@ -1,9 +1,8 @@
 """Module to add in the projection of a micelle."""
 import torch
-from scipy.spatial.transform import Rotation
-import numpy as np
 from simSPI.geometric_micelle import two_phase_micelle
-
+from simSPI.linear_simulator.shift_utils import Shift
+from compSPI.transforms import fourier_to_primal_2D, primal_to_fourier_2D
 
 class Micelle(torch.nn.Module):
   """Class to corrupt the projection with noise.
@@ -27,7 +26,8 @@ class Micelle(torch.nn.Module):
     self.micelle_inner_shell_ratio = config.micelle_inner_shell_ratio
     self.micelle_shell_density_ratio = config.micelle_shell_density_ratio
     self.micelle_box_size = config.micelle_box_size
-
+    self.micelle_translation_z = config.micelle_translation_z
+    self.micelle_shift = Shift(config)
 
 
   def get_micelle(self, rot_params, micelle_params):
@@ -55,10 +55,32 @@ class Micelle(torch.nn.Module):
                                 shell_density_ratio=self.micelle_shell_density_ratio)
     return micelles
 
+  def shift_micelle_given_rotation_translation(self, micelle_f, rot_params):
+
+    rotations = rot_params["rotmat"]
+    translations = rotations[:,[0,1],-1]*self.micelle_translation_z
+
+    shift_params = {'shift_x': translations[:,0],
+                    'shift_y': translations[:,1]}
+    micelle_shifted_f = self.micelle_shift(micelle_f, shift_params)
+    return micelle_shifted_f
+
+  def batch_scale_norm(self, arr_4d):
+    min_batch = arr_4d.reshape(len(arr_4d), 1, -1).min(dim=-1).values
+    arr_4d_posiivereals = arr_4d - min_batch[..., None, None]
+
+    arr_4d_sum = arr_4d_posiivereals.reshape(len(arr_4d), 1, -1).sum(dim=-1)
+    arr_4d_sum1 = arr_4d_posiivereals / arr_4d_sum[..., None, None]
+
+    return arr_4d_sum1
+
+
   def forward(self, proj, rot_params, micelle_params):
-    """Add noise to projections.
+    """Add micelle to projections.
 
     Currently, only supports ellipsoid micelles with a cylindrical cavity.
+
+    TODO: stay in Fourier space
 
     Parameters
     ----------
@@ -72,7 +94,11 @@ class Micelle(torch.nn.Module):
     """
     if micelle_params is not None:
       micelle = self.get_micelle(rot_params, micelle_params)
-      micelle = micelle / micelle.max()
-      proj = proj + self.micelle_scale_factor*micelle
+      micelle_f = primal_to_fourier_2D(micelle)
+      micelle_shifted_f = self.shift_micelle_given_rotation_translation(micelle_f,rot_params)
+      micelle_shifted = fourier_to_primal_2D(micelle_shifted_f).real
+      micelle_shifted_sum1 = self.batch_scale_norm(micelle_shifted)
+
+      proj = proj + self.micelle_scale_factor*micelle_shifted_sum1
 
     return proj
