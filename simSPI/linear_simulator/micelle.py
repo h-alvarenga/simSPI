@@ -58,6 +58,8 @@ class Micelle(torch.nn.Module):
   def shift_micelle_given_rotation_translation(self, micelle_f, rot_params):
     '''
 
+    TODO: test shift does not change power
+
     :param micelle_f:
     :param rot_params:
     :return:
@@ -81,10 +83,12 @@ class Micelle(torch.nn.Module):
     '''
 
     min_batch = arr_4d.reshape(len(arr_4d), 1, -1).min(dim=-1).values
-    arr_4d_posiivereals = arr_4d - min_batch[..., None, None]
+    arr_4d_posivereals = arr_4d - min_batch[..., None, None]
+    print(min_batch)
 
-    arr_4d_sum = arr_4d_posiivereals.reshape(len(arr_4d), 1, -1).sum(dim=-1)
-    arr_4d_sum1 = arr_4d_posiivereals / arr_4d_sum[..., None, None]
+    arr_4d_sum = arr_4d_posivereals.reshape(len(arr_4d), 1, -1).sum(dim=-1)
+    arr_4d_sum1 = arr_4d_posivereals / arr_4d_sum[..., None, None]
+    print(arr_4d_sum)
 
     return arr_4d_sum1
 
@@ -109,6 +113,8 @@ class Micelle(torch.nn.Module):
     if micelle_params is not None:
       micelle = self.get_micelle(rot_params, micelle_params)
       micelle_f = primal_to_fourier_2D(micelle)
+
+      # TODO: check why changing (shifting and flipping) scale
       micelle_shifted_f = self.shift_micelle_given_rotation_translation(micelle_f,rot_params)
       micelle_shifted = fourier_to_primal_2D(micelle_shifted_f).real
       micelle_shifted_sum1 = self.batch_scale_norm(micelle_shifted)
