@@ -66,6 +66,14 @@ class Micelle(torch.nn.Module):
     return micelle_shifted_f
 
   def batch_scale_norm(self, arr_4d):
+    '''
+    Normalize over dimensions such that on batch dimension is all positive and sums to 1
+    TODO: use unsqueeze for reshaping?
+
+    :param arr_4d: shape (batch,1,nx,ny)
+    :return: arr_4d_sum1: shape (batch,1,nx,ny)
+    '''
+
     min_batch = arr_4d.reshape(len(arr_4d), 1, -1).min(dim=-1).values
     arr_4d_posiivereals = arr_4d - min_batch[..., None, None]
 
