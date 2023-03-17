@@ -14,6 +14,8 @@ class Micelle(torch.nn.Module):
     generates centred using simSPI.geometric_micelle
     and then shifts this numerically with FFTs by rotated displacement to new origin
 
+  TODO: micelle_translation_x[yz] +/- convention
+
 
   Written by Geoffrey Woollard
 
@@ -38,30 +40,32 @@ class Micelle(torch.nn.Module):
     self.micelle_shift = Shift(config)
 
 
-  def get_micelle(self, rot_params, micelle_params):
-    assert isinstance(micelle_params,dict)
+  def get_micelle(self, rotations):
     step_x = step_y = 1
     box_size = self.micelle_box_size
     assert max(self.micelle_axis_a,self.micelle_axis_b,self.micelle_axis_c) <= box_size // 2, f'use larger box_size={box_size} for micelle params'
     y_mesh, x_mesh = torch.meshgrid(torch.arange(-box_size//2, box_size//2, step=step_x),
                                  torch.arange(-box_size//2, box_size//2, step=step_y))
 
-    rotations = rot_params["rotmat"]
-    batch_size = len(rot_params["rotmat"])
+    batch_size = len(rotations)
 
     micelles = torch.empty(batch_size, 1, box_size, box_size)
+    translations = rotations @ self.micelle_translation
     for idx in range(batch_size): # TODO: vectorize
       micelles[idx, 0, :, :] = two_phase_micelle(x_mesh, y_mesh,
-                                a=self.micelle_axis_a,
-                                b=self.micelle_axis_b,
-                                c=self.micelle_axis_c,
-                                rotation=rotations[idx],
-                                radius_circle=self.micelle_radius_cavity,
-                                inner_shell_ratio=self.micelle_inner_shell_ratio,
-                                shell_density_ratio=self.micelle_shell_density_ratio)
+                                                 a=self.micelle_axis_a,
+                                                 b=self.micelle_axis_b,
+                                                 c=self.micelle_axis_c,
+                                                 rotation=rotations[idx],
+                                                 radius_circle=self.micelle_radius_cavity,
+                                                 inner_shell_ratio=self.micelle_inner_shell_ratio,
+                                                 shell_density_ratio=self.micelle_shell_density_ratio,
+                                                 shift_x=translations[idx,0],
+                                                 shift_y=translations[idx,1],
+                                                 )
     return micelles
 
-  def shift_micelle_given_rotation_translation(self, micelle_f, rot_params):
+  def fft_shift_micelle_given_rotation_translation(self, micelle_f, rotations):
     '''
 
     :param micelle_f:
@@ -74,7 +78,7 @@ class Micelle(torch.nn.Module):
       Consider promoting to double
     '''
 
-    rotations = rot_params["rotmat"]
+
     translations = rotations@self.micelle_translation
 
     shift_params = {'shift_x': translations[:,0],
@@ -93,16 +97,14 @@ class Micelle(torch.nn.Module):
 
     min_batch = arr_4d.reshape(len(arr_4d), 1, -1).min(dim=-1).values
     arr_4d_posivereals = arr_4d - min_batch[..., None, None]
-    print(min_batch)
 
     arr_4d_sum = arr_4d_posivereals.reshape(len(arr_4d), 1, -1).sum(dim=-1)
     arr_4d_sum1 = arr_4d_posivereals / arr_4d_sum[..., None, None]
-    print(arr_4d_sum)
 
     return arr_4d_sum1
 
 
-  def forward(self, rot_params, micelle_params):
+  def forward(self, rotations):
     """Generate micelle.
 
     Currently, only supports ellipsoid micelles with a cylindrical cavity.
@@ -118,11 +120,9 @@ class Micelle(torch.nn.Module):
         noisy projection of shape (batch_size,1,side_len,side_len)
 
     """
-    if micelle_params is not None:
-      micelle = self.get_micelle(rot_params, micelle_params)
-      micelle_sum1 = self.batch_scale_norm(micelle)
-      micelle_scaled = self.micelle_scale_factor*micelle_sum1
-      micelle_scaled_f = primal_to_fourier_2D(micelle_scaled)
-      micelle_scaled_shifted_f = self.shift_micelle_given_rotation_translation(micelle_scaled_f,rot_params)
+    micelle = self.get_micelle(rotations)
+    micelle_sum1 = self.batch_scale_norm(micelle)
+    micelle_scaled = self.micelle_scale_factor*micelle_sum1
+    micelle_scaled_f = primal_to_fourier_2D(micelle_scaled)
 
-    return micelle_scaled_shifted_f
+    return micelle_scaled_f

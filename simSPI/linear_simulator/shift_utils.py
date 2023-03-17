@@ -1,6 +1,8 @@
 """Module containing a method to apply a spatial shift to an image in Fourier domain."""
 import numpy as np
 import torch
+import warnings
+import math
 
 
 class Shift(torch.nn.Module):
@@ -33,7 +35,9 @@ class Shift(torch.nn.Module):
     def phase_shift(self, x_fourier, t_x, t_y):
         """Output modulated (fourier equivalent of shifting in primal domain).
 
-        TODO: numerically stabilize large shifts. consider promoting to double
+        TODO: numerically stabilize large shifts. happens when translation is too much a fraction of nyquist. consider
+            upsampling
+
 
         Input images given in batch wise format.
         The modulation depends on t_x, t_y.
@@ -56,9 +60,14 @@ class Shift(torch.nn.Module):
         t_y = t_y[:, None, None, None]
         t_x = t_x[:, None, None, None]
 
-        modulation = torch.exp(
-            -2 * np.pi * 1j * self.frequency * (self.mx * t_y + self.my * t_x)
-        )
+        phase_shift = -2 * math.pi * 1j * self.frequency * (self.mx * t_y + self.my * t_x)
+        factor = (phase_shift.imag.abs().max().item() / (2 * math.pi))
+        n_pix = t_y.shape[-1]
+        if n_pix < 8*factor:
+            msg = 'large shifts result in numerical instabilities from aliasing. consider upsampling'
+            warnings.warn(msg, RuntimeWarning)
+            print(msg)
+        modulation = torch.exp(phase_shift)
 
         return x_fourier * modulation
 

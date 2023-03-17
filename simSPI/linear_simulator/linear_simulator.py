@@ -32,10 +32,11 @@ class LinearSimulator(torch.nn.Module):
         self.init_volume()
         self.ctf = CTF(config)
         self.shift = Shift(config)
-        self.micelle = Micelle(config)
+        if config.do_micelle:
+            self.micelle = Micelle(config)
         self.noise = Noise(config)
 
-    def forward(self, rot_params, ctf_params, shift_params, micelle_params=None):
+    def forward(self, rot_params, ctf_params, shift_params,do_micelle=False):
         """Create cryoEM measurements using input parameters.
 
         Parameters
@@ -55,8 +56,10 @@ class LinearSimulator(torch.nn.Module):
         """
         projection = self.projector(rot_params)
         f_projection = primal_to_fourier_2D(projection)
-        f_micelle = self.micelle(rot_params, micelle_params)
-        f_projection = f_projection + f_micelle
+        if do_micelle:
+            # TODO: add offset rotation, from reference micelle to unrotated projection (no inference only matching references)
+            f_micelle = self.micelle(rot_params['rotmat'])
+            f_projection = f_projection + f_micelle
         f_projection = self.ctf(f_projection, ctf_params)
         f_projection = self.shift(f_projection, shift_params)
         projection = fourier_to_primal_2D(f_projection)
