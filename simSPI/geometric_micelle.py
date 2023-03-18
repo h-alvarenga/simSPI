@@ -74,7 +74,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     circle = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation=torch.eye(3))
     fill_factor = h
     proj_cylinder = fill_factor * circle
-    print(case)
+    #print(case)
     return proj_cylinder
 
   elif np.isclose(abs(Rxz), 1):  # 90 deg, line along y-axis
@@ -132,7 +132,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     product = product[idx_start:idx_end,idx_start:idx_end]
   convolve = transforms.fourier_to_primal_2D(product)
   proj_cylinder = convolve.real
-  print(case)
+  #print(case)
   return proj_cylinder
 
 def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio, shift_x=0, shift_y=0):
