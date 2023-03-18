@@ -37,7 +37,7 @@ def project_rotated_ellipsoid(x,y,a,b,c,rotation):
   proj_ellipsoid = torch.nan_to_num(z_nans, 0)
   return proj_ellipsoid
 
-def projected_rotated_circle(x_mesh, y_mesh, radius_circle, rotation):
+def projected_rotated_circle(x_mesh, y_mesh, radius_circle, rotation, do_assert=False):
   '''
   https://math.stackexchange.com/a/2962856
   TODO: fails around 'ZYX',[45,90,0], dotted lines or single point at origin for for 'ZYX',[_,90,0] and extent longer than radius_circle for 'ZYX',[45,90,0]
@@ -45,12 +45,13 @@ def projected_rotated_circle(x_mesh, y_mesh, radius_circle, rotation):
                   perhaps make line similar to in project_rotated_cylinder
                   or handle case directly in project_rotated_cylinder (will be rectangle), and throw error if encoutered here
   '''
+  if do_assert: assert radius_circle >= 0
   normal_axis = rotation[:, -1]  # rotation dotted with zaxis (projection axis)
   nx, ny, nz = normal_axis
   ellipse = (nx * nx + nz * nz) * x_mesh * x_mesh + 2 * nx * ny * x_mesh * y_mesh + (nz * nz + ny * ny) * y_mesh * y_mesh - nz * nz * radius_circle * radius_circle < 0
   return ellipse
 
-def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=None, shift_x=0, shift_y=0):
+def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=None, shift_x=0, shift_y=0, do_assert=False):
   '''
   Comments
   --------
@@ -65,7 +66,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
 
     fails: 'XYZ' [ 84.00753554,  -0.84101199, -94.21614645] degrees. completely empty. else case
   '''
-  assert x_mesh.shape == y_mesh.shape
+  if do_assert: assert x_mesh.shape == y_mesh.shape
   n = x_mesh.shape[0]
   Rxz, Ryz, Rzz = rotation[:, -1].numpy()
 
@@ -83,8 +84,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     line[n // 2, :] = 1
     n_border_x = round(n / 2 - h / 2)
     line[:, :n_border_x] = line[:, -n_border_x:] = 0
-
-
+    
   elif np.isclose(abs(Ryz), 1):  #
     case = '90 deg, line along y-axis'
     line = torch.zeros(n, n)
@@ -113,7 +113,6 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     line_width_factor = 2 # sqrt 2 ?
     line_clipped = line_width_factor - torch.clamp(line_test.abs(), min=0, max=line_width_factor)
 
-
     n_border_x = round(n / 2 - h / 2 * abs(Rxz))
     n_border_y = round(n / 2 - h / 2 * abs(Ryz))
     n_border_x = min_max_border(n_border_x, n)
@@ -133,9 +132,10 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
   convolve = transforms.fourier_to_primal_2D(product)
   proj_cylinder = convolve.real
   #print(case)
+  
   return proj_cylinder
 
-def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio, shift_x=0, shift_y=0):
+def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio, shift_x=0, shift_y=0, do_assert=False):
   '''
 
   :param x_mesh:
@@ -157,15 +157,15 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
 
   '''
   proj_ellipsoid_outer = project_rotated_ellipsoid(x_mesh-shift_x, y_mesh-shift_y, a, b, c, rotation.T)
-  assert proj_ellipsoid_outer.sum() > 0
+  if do_assert: assert proj_ellipsoid_outer.sum() > 0
   proj_ellipsoid_inner = project_rotated_ellipsoid(x_mesh-shift_x, y_mesh-shift_y,
                                                    a * inner_shell_ratio,
                                                    b * inner_shell_ratio,
                                                    c * inner_shell_ratio,
                                                    rotation.T)
-  assert proj_ellipsoid_inner.sum() > 0
+  if do_assert: assert proj_ellipsoid_inner.sum() > 0
   shell = proj_ellipsoid_outer - proj_ellipsoid_inner
-  assert shell.sum() > 0
+  if do_assert: assert shell.sum() > 0
 
   h_outer = c * 2
   volume_outer = math.pi * radius_circle ** 2 * h_outer
@@ -177,7 +177,7 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
                                                  shift_x=shift_x,
                                                  shift_y=shift_y,
                                                  )
-  assert proj_cylinder_outer.sum() > 0
+  if do_assert: assert proj_cylinder_outer.sum() > 0
   proj_cylinder_outer = volume_outer * proj_cylinder_outer / proj_cylinder_outer.sum()
 
   h_inner = c * inner_shell_ratio * 2
@@ -190,14 +190,15 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
                                                  shift_x=shift_x,
                                                  shift_y=shift_y,
                                                  )
-  assert proj_cylinder_inner.sum() > 0
+  if do_assert: assert proj_cylinder_inner.sum() > 0
   proj_cylinder_inner = volume_inner * proj_cylinder_inner / proj_cylinder_inner.sum()
 
   proj_cylinder_shell = proj_cylinder_outer - proj_cylinder_inner
 
   micelle = shell_density_ratio * shell + proj_ellipsoid_inner - (
             shell_density_ratio * proj_cylinder_shell + proj_cylinder_inner)
-  assert micelle.sum() > 0
+  if do_assert: assert micelle.sum() > 0
+  
   return micelle
 
 def min_max_border(n_border, n):
