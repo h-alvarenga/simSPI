@@ -5,7 +5,7 @@ import torch
 from compSPI import transforms
 
 
-def project_rotated_ellipsoid(x,y,a,b,c,rotation):
+def project_rotated_ellipsoid(x_mesh, y_mesh, a, b, c, rotation, do_assert=False):
   '''
 
   TODO: take analytical Fourier transform. start with circle domain (with non constant interior)
@@ -28,9 +28,11 @@ def project_rotated_ellipsoid(x,y,a,b,c,rotation):
   z1 = (piece_1 + piece_2) / piece_3
   z = np.abs(z0 - z1) = 2*piece_2/piece_3
   '''
+  if do_assert: assert min(a,b,c) > 0
   Rxx,Rxy,Rxz = rotation[0]
   Ryx,Ryy,Ryz = rotation[1]
   Rzx,Rzy,Rzz = rotation[2]
+  x,y = x_mesh, y_mesh
   piece_2 = a*b*c*torch.sqrt(-Rxx**2*Ryz**2*c**2*x**2 - Rxx**2*Rzz**2*b**2*x**2 - 2*Rxx*Rxy*Ryz**2*c**2*x*y - 2*Rxx*Rxy*Rzz**2*b**2*x*y + 2*Rxx*Rxz*Ryx*Ryz*c**2*x**2 + 2*Rxx*Rxz*Ryy*Ryz*c**2*x*y + 2*Rxx*Rxz*Rzx*Rzz*b**2*x**2 + 2*Rxx*Rxz*Rzy*Rzz*b**2*x*y - Rxy**2*Ryz**2*c**2*y**2 - Rxy**2*Rzz**2*b**2*y**2 + 2*Rxy*Rxz*Ryx*Ryz*c**2*x*y + 2*Rxy*Rxz*Ryy*Ryz*c**2*y**2 + 2*Rxy*Rxz*Rzx*Rzz*b**2*x*y + 2*Rxy*Rxz*Rzy*Rzz*b**2*y**2 - Rxz**2*Ryx**2*c**2*x**2 - 2*Rxz**2*Ryx*Ryy*c**2*x*y - Rxz**2*Ryy**2*c**2*y**2 - Rxz**2*Rzx**2*b**2*x**2 - 2*Rxz**2*Rzx*Rzy*b**2*x*y - Rxz**2*Rzy**2*b**2*y**2 + Rxz**2*b**2*c**2 - Ryx**2*Rzz**2*a**2*x**2 - 2*Ryx*Ryy*Rzz**2*a**2*x*y + 2*Ryx*Ryz*Rzx*Rzz*a**2*x**2 + 2*Ryx*Ryz*Rzy*Rzz*a**2*x*y - Ryy**2*Rzz**2*a**2*y**2 + 2*Ryy*Ryz*Rzx*Rzz*a**2*x*y + 2*Ryy*Ryz*Rzy*Rzz*a**2*y**2 - Ryz**2*Rzx**2*a**2*x**2 - 2*Ryz**2*Rzx*Rzy*a**2*x*y - Ryz**2*Rzy**2*a**2*y**2 + Ryz**2*a**2*c**2 + Rzz**2*a**2*b**2)
   piece_3 = (Rxz**2*b**2*c**2 + Ryz**2*a**2*c**2 + Rzz**2*a**2*b**2)
   z_nans = 2*piece_2/piece_3
@@ -72,7 +74,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
 
   if np.isclose(rotation[-1, -1], 1, atol=1e-4):
     case = 'about z-axis'
-    circle = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation=torch.eye(3))
+    circle = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation=torch.eye(3),do_assert=do_assert)
     fill_factor = h
     proj_cylinder = fill_factor * circle
     #print(case)
@@ -123,7 +125,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
 
   line_f = transforms.primal_to_fourier_2D(line)
 
-  ellipse = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation)
+  ellipse = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation, do_assert=do_assert)
   ellipse_f = transforms.primal_to_fourier_2D(ellipse)
   product = ellipse_f * line_f # TODO: add anti-aliasing for blurring
   if n_crop is not None:
@@ -156,13 +158,14 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
   TODO: fails, not sure why: rotation = eye(3); rotation[[0,2]] = rotation[[2,0]]
 
   '''
-  proj_ellipsoid_outer = project_rotated_ellipsoid(x_mesh-shift_x, y_mesh-shift_y, a, b, c, rotation.T)
+  proj_ellipsoid_outer = project_rotated_ellipsoid(x_mesh-shift_x, y_mesh-shift_y, a, b, c, rotation.T, do_assert=do_assert)
   if do_assert: assert proj_ellipsoid_outer.sum() > 0
   proj_ellipsoid_inner = project_rotated_ellipsoid(x_mesh-shift_x, y_mesh-shift_y,
                                                    a * inner_shell_ratio,
                                                    b * inner_shell_ratio,
                                                    c * inner_shell_ratio,
-                                                   rotation.T)
+                                                   rotation.T,
+                                                  do_assert=do_assert)
   if do_assert: assert proj_ellipsoid_inner.sum() > 0
   shell = proj_ellipsoid_outer - proj_ellipsoid_inner
   if do_assert: assert shell.sum() > 0
@@ -176,6 +179,7 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
                                                  rotation=rotation,
                                                  shift_x=shift_x,
                                                  shift_y=shift_y,
+                                                 do_assert=do_assert,
                                                  )
   if do_assert: assert proj_cylinder_outer.sum() > 0
   proj_cylinder_outer = volume_outer * proj_cylinder_outer / proj_cylinder_outer.sum()
@@ -189,6 +193,7 @@ def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_sh
                                                  rotation=rotation,
                                                  shift_x=shift_x,
                                                  shift_y=shift_y,
+                                                 do_assert=do_assert,
                                                  )
   if do_assert: assert proj_cylinder_inner.sum() > 0
   proj_cylinder_inner = volume_inner * proj_cylinder_inner / proj_cylinder_inner.sum()
