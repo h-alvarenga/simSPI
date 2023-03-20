@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import torch
+from torch import tensor
 
 from compSPI import transforms
 
@@ -63,21 +64,24 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     'XZY',[0,1,91] problems in two phase / stripes
     make blurring to anti-alias
 
+    # TODO: vectorize
+
     fails: 'XYZ' [ 84.00753554,  -0.84101199, -94.21614645] degrees. completely empty. else case
   '''
   assert x_mesh.shape == y_mesh.shape
   n = x_mesh.shape[0]
-  Rxz, Ryz, Rzz = rotation[:, -1].numpy()
+  Rxz, Ryz, Rzz = rotation[:, -1]
 
-  if np.isclose(rotation[-1, -1], 1, atol=1e-4):
+  one, zero = tensor(1.), tensor(0.)
+  if torch.isclose(Rzz, one, atol=1e-4):
     case = 'about z-axis'
     circle = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation=torch.eye(3))
     fill_factor = h
     proj_cylinder = fill_factor * circle
-    print(case)
+    # print(case)
     return proj_cylinder
 
-  elif np.isclose(abs(Rxz), 1):  # 90 deg, line along y-axis
+  elif torch.isclose(Rxz.abs(), one):  # 90 deg, line along y-axis
     case = '90 deg, line along x-axis'
     line = torch.zeros(n, n)
     line[n // 2, :] = 1
@@ -85,25 +89,25 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     line[:, :n_border_x] = line[:, -n_border_x:] = 0
 
 
-  elif np.isclose(abs(Ryz), 1):  #
+  elif torch.isclose(Ryz.abs(), one):  #
     case = '90 deg, line along y-axis'
     line = torch.zeros(n, n)
     line[:, n // 2] = 1
     n_border_y = round(n / 2 - h / 2 )
     line[:n_border_y, :] = line[-n_border_y:, :] = 0
 
-  elif np.isclose(Ryz, 0) and not np.isclose(Rzz, 1):
+  elif torch.isclose(Ryz, zero) and not torch.isclose(Rzz, one):
     case = '90 deg, line along x-axis with z-tilt'
     line = torch.zeros(n, n)
     line[n // 2, :] = 1
-    n_border_x = round(n / 2 - h / 2 * abs(Rxz))
+    n_border_x = (n / 2 - h / 2 * Rxz.abs()).round().long()
     line[:, :n_border_x] = line[:, -n_border_x:] = 0
 
-  elif np.isclose(Rxz, 0) and not np.isclose(Rzz, 1):
+  elif torch.isclose(Rxz, zero) and not torch.isclose(Rzz, one):
     case = '90 deg, line along y-axis with z-tilt'
     line = torch.zeros(n, n)
     line[:, n // 2] = 1
-    n_border_y = round(n / 2 - h / 2 * abs(Ryz))
+    n_border_y = (n / 2 - h / 2 * Ryz.abs()).round().long()
     line[:n_border_y, :] = line[-n_border_y:, :] = 0
 
   else:
@@ -114,8 +118,8 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     line_clipped = line_width_factor - torch.clamp(line_test.abs(), min=0, max=line_width_factor)
 
 
-    n_border_x = round(n / 2 - h / 2 * abs(Rxz))
-    n_border_y = round(n / 2 - h / 2 * abs(Ryz))
+    n_border_x = (n / 2 - h / 2 * Rxz.abs()).round().long()
+    n_border_y = (n / 2 - h / 2 * Ryz.abs()).round().long()
     n_border_x = min_max_border(n_border_x, n)
     n_border_y = min_max_border(n_border_y, n)
 
@@ -132,7 +136,7 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
     product = product[idx_start:idx_end,idx_start:idx_end]
   convolve = transforms.fourier_to_primal_2D(product)
   proj_cylinder = convolve.real
-  print(case)
+  # print(case)
   return proj_cylinder
 
 def two_phase_micelle(x_mesh, y_mesh, a, b, c, rotation, radius_circle, inner_shell_ratio, shell_density_ratio, shift_x=0, shift_y=0):
