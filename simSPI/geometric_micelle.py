@@ -89,28 +89,28 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
 
   elif torch.isclose(Rxz.abs(), one):  # 90 deg, line along y-axis
     case = '90 deg, line along x-axis'
-    line = torch.zeros(n, n)
+    line = torch.zeros(n, n).to(dev)
     line[n // 2, :] = 1
     n_border_x = round(n / 2 - h / 2)
     line[:, :n_border_x] = line[:, -n_border_x:] = 0
 
   elif torch.isclose(Ryz.abs(), one):  #
     case = '90 deg, line along y-axis'
-    line = torch.zeros(n, n)
+    line = torch.zeros(n, n).to(dev)
     line[:, n // 2] = 1
-    n_border_y = round(n / 2 - h / 2 )
+    n_border_y = round(n / 2 - h / 2)
     line[:n_border_y, :] = line[-n_border_y:, :] = 0
 
   elif torch.isclose(Ryz, zero) and not torch.isclose(Rzz, one):
     case = '90 deg, line along x-axis with z-tilt'
-    line = torch.zeros(n, n)
+    line = torch.zeros(n, n).to(dev)
     line[n // 2, :] = 1
     n_border_x = (n / 2 - h / 2 * Rxz.abs()).round().long()
     line[:, :n_border_x] = line[:, -n_border_x:] = 0
 
   elif torch.isclose(Rxz, zero) and not torch.isclose(Rzz, one):
     case = '90 deg, line along y-axis with z-tilt'
-    line = torch.zeros(n, n)
+    line = torch.zeros(n, n).to(dev)
     line[:, n // 2] = 1
     n_border_y = (n / 2 - h / 2 * Ryz.abs()).round().long()
     line[:n_border_y, :] = line[-n_border_y:, :] = 0
