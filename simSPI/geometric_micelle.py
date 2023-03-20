@@ -3,7 +3,7 @@ import torch
 from torch import tensor
 
 from compSPI import transforms
-from device import init_device
+from simSPI.device import init_device
 
 
 dev = init_device()
