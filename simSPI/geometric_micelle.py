@@ -1,10 +1,12 @@
 import math
-import numpy as np
 import torch
 from torch import tensor
 
 from compSPI import transforms
+from device import init_device
 
+
+dev = init_device()
 
 def project_rotated_ellipsoid(x_mesh, y_mesh, a, b, c, rotation, do_assert=False):
   '''
@@ -75,10 +77,10 @@ def project_rotated_cylinder(x_mesh, y_mesh, radius_circle, h, rotation, n_crop=
   n = x_mesh.shape[0]
   Rxz, Ryz, Rzz = rotation[:, -1]
 
-  one, zero = tensor(1.), tensor(0.)
+  one, zero = tensor(1.).to(dev), tensor(0.).to(dev)
   if torch.isclose(Rzz, one, atol=1e-4):
     case = 'about z-axis'
-    circle = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation=torch.eye(3),do_assert=do_assert)
+    circle = projected_rotated_circle(x_mesh-shift_x, y_mesh-shift_y, radius_circle, rotation=torch.eye(3).to(dev),do_assert=do_assert)
     fill_factor = h
     proj_cylinder = fill_factor * circle
     # print(case)
