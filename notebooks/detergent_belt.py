@@ -133,7 +133,7 @@ class Model():
                 atom_numb += 1
         structure.write_pdb(path)
 
-    def create_model(self,file_name,core,shell,protein):
+    def create_model(self,file_name,core,shell,protein=None):
         """This function generates a PDB file with the corona coordinates
         
         Parameters
@@ -143,11 +143,17 @@ class Model():
         """
         pseudoatom1 = len(core.coordinates_set)*[core.atom_type]
         pseudoatom2 = len(shell.coordinates_set)*[shell.atom_type]
-        prtn_atoms = protein.atoms
-        self.write_cartesian_coordinates(file_name,
+        
+        if protein is not None:
+            prtn_atoms = protein.atoms
+            self.write_cartesian_coordinates(file_name,
                                          (("A",pseudoatom1,core.coordinates_set),
                                           ("B",pseudoatom2,shell.coordinates_set),
                                           ("C",prtn_atoms,protein.final_coordinates)))
+        else:
+            self.write_cartesian_coordinates(file_name,
+                                         (("A",pseudoatom1,core.coordinates_set),
+                                          ("B",pseudoatom2,shell.coordinates_set)))
                                          
 
 class MembraneProtein(Model):
@@ -276,7 +282,7 @@ class DetergentBelt(Model):
     """Class to generate a detergent belt
     """
 
-    def set_belt_parameters(self, hight, width, e):
+    def set_belt_parameters(self, axis1, axis2, height):
         """This function defines the micelle parameters according to user input
 
         Parameters
@@ -290,15 +296,18 @@ class DetergentBelt(Model):
                                                                                                            
         Returns
         -------
-        b: float
+        a: float
             Major axis of ellipsoid.
+        b: float
+            Minor axis of ellipsoid.
         c: float
             Minor axis of ellipsoid.
         """
-        b = width*e
-        c = hight/e
+        a = axis1
+        b = axis2
+        c = height
 
-        self.parameters = (b,c)
+        self.parameters = (a,b,c)
         
     def set_atomic_parameters(self, r, atom_type):
         """This function defines the pseudo atoms parameters according to user input
@@ -314,7 +323,7 @@ class DetergentBelt(Model):
         self.atom_type = atom_type
         self.atomic_ray = r
 
-    def eq_ellipsoid(self,x,y,z,b,c):
+    def eq_ellipsoid(self,x,y,z,a,b,c):
         """This function checks if a point [x,y,z] is inside an ellipsoid of axis b and c
 
         Parameters
@@ -325,6 +334,8 @@ class DetergentBelt(Model):
             Y coordinate.
         z: float
             Z coordinate.
+        a: float
+            Major axis of ellipsoid.
         b: float
             Major axis of ellipsoid.
         c: float
@@ -337,7 +348,7 @@ class DetergentBelt(Model):
             False if the point is not located in the ellipsoid
         """
 
-        eq = ((x**2)/b**2) + ((y**2)/b**2) + ((z**2)/c**2)
+        eq = ((x**2)/a**2) + ((y**2)/b**2) + ((z**2)/c**2)
         return eq <= 1
     
     def generate_ellipsoid(self):
@@ -350,15 +361,15 @@ class DetergentBelt(Model):
             Set of coordinates of ellipsoid pseudo atoms.
         """
         coordinates_set = []
-        b,c = self.parameters
+        a,b,c = self.parameters
         r = self.atomic_ray
         z = r
         while z <= c:
             y = r
             while y <= b:
                 x = r
-                while x <= b:
-                    if self.eq_ellipsoid(x,y,z,b,c):
+                while x <= a:
+                    if self.eq_ellipsoid(x,y,z,a,b,c):
                          coordinates_set += ([x,y,z], [-x,y,z], 
                                              [x,-y,z], [-x,-y,z],
                                              [x,y,-z], [-x,y,-z], 
