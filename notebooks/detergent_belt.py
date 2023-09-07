@@ -35,7 +35,7 @@ class Model():
             structure.remove_alternative_conformations()
             structure.remove_hydrogens()
             structure.remove_waters()
-            structure.remove_ligands_and_waters()
+            #structure.remove_ligands_and_waters()
             structure.remove_empty_chains()
         return structure
 
@@ -195,15 +195,15 @@ class MembraneProtein(Model):
 
     def center_protein(self):
         """This function centers a set of coordinates XYZ on the origin (0,0,0)
-        
+            
         Returns
         -------
         X,Y,Z: numpy array[,3]
             A set of all atomic coordinates centered on the origin.
         """
         coord_set = self.get_protein()
+        mean_coord=[0,0,0]
         N = len(coord_set)
-        mean_coord = [0,0,0]
         for i in range(3):
             mean_coord[i] = sum(coord_set[:,i])/N
         new_coord_set = np.zeros((N,3))
@@ -215,7 +215,7 @@ class MembraneProtein(Model):
 
     def rotate_protein(self, axis = 'Z'):
         """This function rotates the protein to an axis
-        
+            
         Parameters
         ----------
         axis: numpy array[,3]
@@ -264,7 +264,7 @@ class MembraneProtein(Model):
             kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
             rotation_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1-c) / (s**2))
             return rotation_matrix
-
+        
         centered_protein = self.center_protein()
         pca = PCA(n_components=3)
         pca.fit(centered_protein)
@@ -282,7 +282,7 @@ class DetergentBelt(Model):
     """Class to generate a detergent belt
     """
 
-    def set_belt_parameters(self, axis1, axis2, height):
+    def set_belt_parameters(self, axis1, axis2, height, center):
         """This function defines the micelle parameters according to user input
 
         Parameters
@@ -293,6 +293,8 @@ class DetergentBelt(Model):
             Width of ellipsoid.
         e: float
             Ellipticity.
+        center : numpy array[,3]
+            Center of ellipsoid.
                                                                                                            
         Returns
         -------
@@ -308,6 +310,7 @@ class DetergentBelt(Model):
         c = height
 
         self.parameters = (a,b,c)
+        self.center = center
         
     def set_atomic_parameters(self, r, atom_type):
         """This function defines the pseudo atoms parameters according to user input
@@ -347,7 +350,6 @@ class DetergentBelt(Model):
             True if point belongs to the ellipsoid
             False if the point is not located in the ellipsoid
         """
-
         eq = ((x**2)/a**2) + ((y**2)/b**2) + ((z**2)/c**2)
         return eq <= 1
     
@@ -360,7 +362,10 @@ class DetergentBelt(Model):
         self.coordinates_set: numpy array[,3]
             Set of coordinates of ellipsoid pseudo atoms.
         """
-        coordinates_set = []
+        coordinates_set = []        
+        x0 = self.center[0]
+        y0 = self.center[1]
+        z0 = self.center[2]
         a,b,c = self.parameters
         r = self.atomic_ray
         z = r
@@ -370,10 +375,10 @@ class DetergentBelt(Model):
                 x = r
                 while x <= a:
                     if self.eq_ellipsoid(x,y,z,a,b,c):
-                         coordinates_set += ([x,y,z], [-x,y,z], 
-                                             [x,-y,z], [-x,-y,z],
-                                             [x,y,-z], [-x,y,-z], 
-                                             [x,-y,-z], [-x,-y,-z])
+                         coordinates_set += ([x+x0,y+y0,z+z0], [-x+x0,y+y0,z+z0], 
+                                             [x+x0,-y+y0,z+z0], [-x+x0,-y+y0,z+z0],
+                                             [x+x0,y+y0,-z+z0], [-x+x0,y+y0,-z+z0], 
+                                             [x+x0,-y+y0,-z+z0], [-x+x0,-y+y0,-z+z0])
                     x += 2*r
                 y += 2*r
             z += 2*r
