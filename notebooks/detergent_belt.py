@@ -133,7 +133,7 @@ class Model():
                 atom_numb += 1
         structure.write_pdb(path)
 
-    def create_model(self,file_name,core,shell,protein=None):
+    def create_model(self,file_name,micelle,protein=None):
         """This function generates a PDB file with the corona coordinates
         
         Parameters
@@ -141,19 +141,19 @@ class Model():
         file_name: string
             Path to PDB file.
         """
-        pseudoatom1 = len(core.coordinates_set)*[core.atom_type]
-        pseudoatom2 = len(shell.coordinates_set)*[shell.atom_type]
+        pseudoatom1 = len(micelle.core_coordinates_set)*[micelle.core_atom_type] #core
+        pseudoatom2 = len(micelle.shell_coordinates_set)*[micelle.shell_atom_type] #shell
         
         if protein is not None:
             prtn_atoms = protein.atoms
             self.write_cartesian_coordinates(file_name,
-                                         (("A",pseudoatom1,core.coordinates_set),
-                                          ("B",pseudoatom2,shell.coordinates_set),
+                                         (("A",pseudoatom1,micelle.core_coordinates_set),
+                                          ("B",pseudoatom2,micelle.shell_coordinates_set),
                                           ("C",prtn_atoms,protein.final_coordinates)))
         else:
             self.write_cartesian_coordinates(file_name,
-                                         (("A",pseudoatom1,core.coordinates_set),
-                                          ("B",pseudoatom2,shell.coordinates_set)))
+                                         (("A",pseudoatom1,micelle.core_coordinates_set),
+                                          ("B",pseudoatom2,micelle.shell_coordinates_set)))
                                          
 
 class MembraneProtein(Model):
@@ -282,52 +282,62 @@ class DetergentBelt(Model):
     """Class to generate a detergent belt
     """
 
-    def set_belt_parameters(self, axis1, axis2, height, center):
+    def set_belt_parameters(self, axis1, axis2, height, thickness, center):
         """This function defines the micelle parameters according to user input
 
         Parameters
         ----------
-        hight: float
-            Height of ellipsoid.
-        width: float
-            Width of ellipsoid.
-        e: float
-            Ellipticity.
+        axis 1: float
+            Size of micelle.
+        axis 2: float
+            Size of micelle.
+        height: float
+            Height of micelle.
+        thickness: float
+            Thickness of hydrophilic shell.
         center : numpy array[,3]
             Center of ellipsoid.
                                                                                                            
         Returns
         -------
         a: float
-            Major axis of ellipsoid.
+            Major axis of hydrophobic core.
         b: float
-            Minor axis of ellipsoid.
+            Minor axis of hydrophobic core..
         c: float
-            Minor axis of ellipsoid.
+            Minor axis of hydrophobic core..
+            
+            hydrophobic core.
         """
-        a = axis1
-        b = axis2
-        c = height
+        a = axis1 - thickness
+        b = axis2 - thickness
+        c = height - thickness
 
         self.parameters = (a,b,c)
         self.center = center
+        self.thickness = thickness
         
-    def set_atomic_parameters(self, r, atom_type):
+    def set_atomic_parameters(self, r, core_atom_type, shell_atom_type):
         """This function defines the pseudo atoms parameters according to user input
 
         Parameters
         ----------
-        r: float 
-            Atomic ray.
-        atom_type: string
-            Atomic element.
+        core_r: float 
+            Atomic ray of micelle core pseudoatoms.
+        core_atom_type: string
+            Atomic element of micelle core pseudoatoms.
+        shell_r: float 
+            Atomic ray of micelle shell pseudoatoms.
+        shell_atom_type: string
+            Atomic element of micelle shell pseudoatoms.
         """
 
-        self.atom_type = atom_type
         self.atomic_ray = r
+        self.core_atom_type = core_atom_type
+        self.shell_atom_type = shell_atom_type
 
     def eq_ellipsoid(self,x,y,z,a,b,c):
-        """This function checks if a point [x,y,z] is inside an ellipsoid of axis b and c
+        """This function checks if a point [x,y,z] is inside an ellipsoid of axis a, b and c
 
         Parameters
         ----------
@@ -353,7 +363,7 @@ class DetergentBelt(Model):
         eq = ((x**2)/a**2) + ((y**2)/b**2) + ((z**2)/c**2)
         return eq <= 1
     
-    def generate_ellipsoid(self):
+    def generate_core(self):
         """This function creates an ellipsoid by generating equally spaced points
         from the origin (0,0,0) until the ellipsoid limits are reached.
         
@@ -362,29 +372,66 @@ class DetergentBelt(Model):
         self.coordinates_set: numpy array[,3]
             Set of coordinates of ellipsoid pseudo atoms.
         """
-        coordinates_set = []        
+        core_coordinates_set = [] 
+        shell_coordinates_set = []        
         x0 = self.center[0]
         y0 = self.center[1]
         z0 = self.center[2]
-        a,b,c = self.parameters
+        a,b,h = self.parameters
         r = self.atomic_ray
         z = r
-        while z <= c:
+        
+        while z <= h:
             y = r
             while y <= b:
                 x = r
                 while x <= a:
-                    if self.eq_ellipsoid(x,y,z,a,b,c):
-                         coordinates_set += ([x+x0,y+y0,z+z0], [-x+x0,y+y0,z+z0], 
-                                             [x+x0,-y+y0,z+z0], [-x+x0,-y+y0,z+z0],
-                                             [x+x0,y+y0,-z+z0], [-x+x0,y+y0,-z+z0], 
-                                             [x+x0,-y+y0,-z+z0], [-x+x0,-y+y0,-z+z0])
-                    x += 2*r
+                    if self.eq_ellipsoid(x,y,z,a,b,h):
+                        core_coordinates_set += ([x+x0,y+y0,z+z0], [-x+x0,y+y0,z+z0],
+                                                 [x+x0,-y+y0,z+z0], [-x+x0,-y+y0,z+z0],
+                                                 [x+x0,y+y0,-z+z0], [-x+x0,y+y0,-z+z0],
+                                                 [x+x0,-y+y0,-z+z0], [-x+x0,-y+y0,-z+z0])
+                    x += 2*r 
                 y += 2*r
             z += 2*r
-        self.coordinates_set = coordinates_set
+        
+        self.core_coordinates_set = core_coordinates_set
+        
+    def generate_shell(self):
+        """This function creates an ellipsoid by generating equally spaced points
+        from the origin (0,0,0) until the ellipsoid limits are reached.
+        
+        Returns
+        -------
+        self.coordinates_set: numpy array[,3]
+            Set of coordinates of ellipsoid pseudo atoms.
+        """
+        core_coordinates_set = [] 
+        shell_coordinates_set = []        
+        x0 = self.center[0]
+        y0 = self.center[1]
+        z0 = self.center[2]
+        a,b,h = self.parameters
+        t = self.thickness
+        r = self.atomic_ray
+        zs = r
+        
+        while zs <= h+t:
+            ys = r
+            while ys <= b+t:
+                xs = r
+                while xs <= a+t:
+                    if self.eq_ellipsoid(xs,ys,zs,a+t,b+t,h+t):
+                        shell_coordinates_set += ([xs+x0,ys+y0,zs+z0], [-xs+x0,ys+y0,zs+z0],
+                                                      [xs+x0,-ys+y0,zs+z0], [-xs+x0,-ys+y0,zs+z0],
+                                                      [xs+x0,ys+y0,-zs+z0], [-xs+x0,ys+y0,-zs+z0],
+                                                      [xs+x0,-ys+y0,-zs+z0], [-xs+x0,-ys+y0,-zs+z0])
+                    xs += 2*r
+                ys += 2*r
+            zs += 2*r
+        self.shell_coordinates_set = shell_coordinates_set      
 
-    def in_hull(self,hull_set):
+    def in_hull(self,coordinates_set,hull_set):
         """This function list all points form a set that are inside a convex hull
 
         Parameters
@@ -398,22 +445,16 @@ class DetergentBelt(Model):
         """
         hull = ConvexHull(hull_set)
         inside = list()
-        for point in self.coordinates_set:
+        for point in coordinates_set:
             new_hull = ConvexHull(np.concatenate((hull_set, [point]),axis=0))
             if np.array_equal(new_hull.vertices, hull.vertices):
                 inside.append(point)
         self.inside = inside
 
-    def remove(self):
+    def remove(self, coordinates_set):
         """This function removes the points of the ellipsoid coordinates set
         that are inside the hull
         """
         for point in self.inside:
-            self.coordinates_set.remove(point)
-
-
-class BeltCore(DetergentBelt):
-        pass
-
-class BeltShell(DetergentBelt):
-        pass
+            coordinates_set.remove(point)
+         
