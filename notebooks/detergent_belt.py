@@ -133,7 +133,11 @@ class Model():
                 atom_numb += 1
         structure.write_pdb(path)
 
+<<<<<<< HEAD
     def create_model(self,file_name,micelle,protein=None):
+=======
+    def create_model(self,file_name,core,shell,protein=None):
+>>>>>>> a500287 (Add protein datasets)
         """This function generates a PDB file with the corona coordinates
         
         Parameters
@@ -141,6 +145,7 @@ class Model():
         file_name: string
             Path to PDB file.
         """
+<<<<<<< HEAD
         pseudoatom1 = len(micelle.core_coordinates_set)*[micelle.core_atom_type] #core
         pseudoatom2 = len(micelle.shell_coordinates_set)*[micelle.shell_atom_type] #shell
         
@@ -154,6 +159,18 @@ class Model():
             self.write_cartesian_coordinates(file_name,
                                          (("A",pseudoatom1,micelle.core_coordinates_set),
                                           ("B",pseudoatom2,micelle.shell_coordinates_set)))
+=======
+        pseudoatom1 = len(core.coordinates_set)*[core.atom_type]
+        pseudoatom2 = len(shell.coordinates_set)*[shell.atom_type]
+        prtn_atoms = protein.atoms
+        if protein is not None:
+            self.write_cartesian_coordinates(file_name,
+                                             (("A",pseudoatom1,core.coordinates_set),
+                                              ("B",pseudoatom2,shell.coordinates_set),
+                                              ("C",prtn_atoms,protein.final_coordinates)))
+        else:
+            self.write_cartesian_coordinates(file_name,(("A",pseudoatom1,core.coordinates_set),("B",pseudoatom2,shell.coordinates_set)))
+>>>>>>> a500287 (Add protein datasets)
                                          
 
 class MembraneProtein(Model):
