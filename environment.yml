@@ -7,6 +7,7 @@ dependencies:
   - codecov
   - configparser
   - coverage
+  - gemmi
   - h5py
   - jupyter
   - mdtraj
@@ -19,6 +20,8 @@ dependencies:
   - pytest-cov
   - pytorch=1.9.0
   - pytorch3d
+  - scikit-learn
+  - scipy
   - pip:
     - geomstats
     - git+https://github.com/compSPI/compSPI.git

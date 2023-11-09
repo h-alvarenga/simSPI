@@ -282,7 +282,11 @@ class DetergentBelt(Model):
     """Class to generate a detergent belt
     """
 
+<<<<<<< HEAD
     def set_belt_parameters(self, axis1, axis2, height, thickness, center):
+=======
+    def set_belt_parameters(self, axis1, axis2, height):
+>>>>>>> cfc87e2 (Add new models and update notebook)
         """This function defines the micelle parameters according to user input
 
         Parameters
@@ -309,6 +313,7 @@ class DetergentBelt(Model):
             
             hydrophobic core.
         """
+<<<<<<< HEAD
         a = axis1 - thickness
         b = axis2 - thickness
         c = height - thickness
@@ -316,6 +321,13 @@ class DetergentBelt(Model):
         self.parameters = (a,b,c)
         self.center = center
         self.thickness = thickness
+=======
+        a = axis1
+        b = axis2
+        c = height
+
+        self.parameters = (a,b,c)
+>>>>>>> cfc87e2 (Add new models and update notebook)
         
     def set_atomic_parameters(self, r, core_atom_type, shell_atom_type):
         """This function defines the pseudo atoms parameters according to user input
@@ -337,7 +349,11 @@ class DetergentBelt(Model):
         self.shell_atom_type = shell_atom_type
 
     def eq_ellipsoid(self,x,y,z,a,b,c):
+<<<<<<< HEAD
         """This function checks if a point [x,y,z] is inside an ellipsoid of axis a, b and c
+=======
+        """This function checks if a point [x,y,z] is inside an ellipsoid of axis b and c
+>>>>>>> cfc87e2 (Add new models and update notebook)
 
         Parameters
         ----------
@@ -360,6 +376,10 @@ class DetergentBelt(Model):
             True if point belongs to the ellipsoid
             False if the point is not located in the ellipsoid
         """
+<<<<<<< HEAD
+=======
+
+>>>>>>> cfc87e2 (Add new models and update notebook)
         eq = ((x**2)/a**2) + ((y**2)/b**2) + ((z**2)/c**2)
         return eq <= 1
     
@@ -372,12 +392,17 @@ class DetergentBelt(Model):
         self.coordinates_set: numpy array[,3]
             Set of coordinates of ellipsoid pseudo atoms.
         """
+<<<<<<< HEAD
         core_coordinates_set = [] 
         shell_coordinates_set = []        
         x0 = self.center[0]
         y0 = self.center[1]
         z0 = self.center[2]
         a,b,h = self.parameters
+=======
+        coordinates_set = []
+        a,b,c = self.parameters
+>>>>>>> cfc87e2 (Add new models and update notebook)
         r = self.atomic_ray
         z = r
         
@@ -386,12 +411,21 @@ class DetergentBelt(Model):
             while y <= b:
                 x = r
                 while x <= a:
+<<<<<<< HEAD
                     if self.eq_ellipsoid(x,y,z,a,b,h):
                         core_coordinates_set += ([x+x0,y+y0,z+z0], [-x+x0,y+y0,z+z0],
                                                  [x+x0,-y+y0,z+z0], [-x+x0,-y+y0,z+z0],
                                                  [x+x0,y+y0,-z+z0], [-x+x0,y+y0,-z+z0],
                                                  [x+x0,-y+y0,-z+z0], [-x+x0,-y+y0,-z+z0])
                     x += 2*r 
+=======
+                    if self.eq_ellipsoid(x,y,z,a,b,c):
+                         coordinates_set += ([x,y,z], [-x,y,z], 
+                                             [x,-y,z], [-x,-y,z],
+                                             [x,y,-z], [-x,y,-z], 
+                                             [x,-y,-z], [-x,-y,-z])
+                    x += 2*r
+>>>>>>> cfc87e2 (Add new models and update notebook)
                 y += 2*r
             z += 2*r
         
@@ -431,8 +465,13 @@ class DetergentBelt(Model):
             zs += 2*r
         self.shell_coordinates_set = shell_coordinates_set      
 
+<<<<<<< HEAD
     def in_hull(self,coordinates_set,hull_set):
         """This function list all points form a set that are inside a convex hull
+=======
+    def in_hull(self,hull_set):
+        """This function lists all points that form a set that are inside a convex hull
+>>>>>>> cfc87e2 (Add new models and update notebook)
 
         Parameters
         ----------
